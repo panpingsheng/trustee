@@ -258,6 +258,85 @@ impl Verifier for CsvVerifier {
                 }
                 Ok(vec![(claims, "cpu".to_string())])
             }
+            AttestationReport::V3(attestation_report_v3) => {
+                let policy = attestation_report_v3.tee_info.policy;
+                let mut claims = json!({
+                    "version": "3",
+                    "policy": {
+                        "nodbg": policy.nodbg(),
+                        "noks": policy.noks(),
+                        "es": policy.es(),
+                        "nosend": policy.nosend(),
+                        "domain": policy.domain(),
+                        "csv": policy.csv(),
+                        "csv3": policy.csv3(),
+                        "asid_reuse": policy.asid_reuse(),
+                        "hsk_version": policy.hsk_version(),
+                        "cek_version": policy.cek_version(),
+                        "api_major": policy.api_major(),
+                        "api_minor": policy.api_minor(),
+                    },
+                    "user_pubkey_digest": hex::encode(report.tee_info().user_pubkey_digest()),
+                    "vm_id": hex::encode(report.tee_info().vm_id()),
+                    "vm_version": hex::encode(report.tee_info().vm_version()),
+                    "report_data": hex::encode(report.tee_info().report_data()),
+                    "mnonce": hex::encode(report.tee_info().mnonce()),
+                    "measure": hex::encode(report.tee_info().measure()),
+                    "sig_usage": hex::encode(report.tee_info().sig_usage().to_le_bytes()),
+                    "sig_algo": hex::encode(report.tee_info().sig_algo().to_le_bytes()),
+                    "build": attestation_report_v3.tee_info.build,
+                    "rtmr_version": attestation_report_v3.tee_info.rtmr_version,
+                    "reserved0": hex::encode(attestation_report_v3.tee_info.reserved0),
+                    "rtmr0": hex::encode(attestation_report_v3.tee_info.rtmr0),
+                    "rtmr1": hex::encode(attestation_report_v3.tee_info.rtmr1),
+                    "rtmr2": hex::encode(attestation_report_v3.tee_info.rtmr2),
+                    "rtmr3": hex::encode(attestation_report_v3.tee_info.rtmr3),
+                    "rtmr4": hex::encode(attestation_report_v3.tee_info.rtmr4),
+                    "reserved1": hex::encode(attestation_report_v3.tee_info.reserved1),
+                    "host_data": hex::encode(attestation_report_v3.tee_info.host_data),
+                    "serial_number": String::from_utf8(serial_number)?.trim_end_matches('\0'),
+                });
+                if let Some(el) = cc_eventlog {
+                    let ccel_data = base64::engine::general_purpose::STANDARD.decode(el)?;
+                    let ccel = CcEventLog::try_from(ccel_data)
+                        .map_err(|e| anyhow!("Parse CC Eventlog failed: {:?}", e))?;
+                    let compare_obj: Vec<ReferenceMeasurement> = vec![
+                        ReferenceMeasurement {
+                            index: 1,
+                            algorithm: TcgAlgorithm::Sm3,
+                            reference: attestation_report_v3.tee_info.rtmr1.to_vec(),
+                            initial_value: vec![],
+                        },
+                        ReferenceMeasurement {
+                            index: 2,
+                            algorithm: TcgAlgorithm::Sm3,
+                            reference: attestation_report_v3.tee_info.rtmr2.to_vec(),
+                            initial_value: vec![],
+                        },
+                        ReferenceMeasurement {
+                            index: 3,
+                            algorithm: TcgAlgorithm::Sm3,
+                            reference: attestation_report_v3.tee_info.rtmr3.to_vec(),
+                            initial_value: vec![],
+                        },
+                        ReferenceMeasurement {
+                            index: 4,
+                            algorithm: TcgAlgorithm::Sm3,
+                            reference: attestation_report_v3.tee_info.rtmr4.to_vec(),
+                            initial_value: vec![],
+                        },
+                    ];
+
+                    ccel.replay_and_match(compare_obj)?;
+                    info!("EventLog integrity check succeeded.");
+
+                    claims.as_object_mut().expect("Must be an object").insert(
+                        "uefi_event_logs".to_string(),
+                        serde_json::to_value(ccel.clone().log)?,
+                    );
+                }
+                Ok(vec![(claims, "cpu".to_string())])
+            }
         }
     }
 }

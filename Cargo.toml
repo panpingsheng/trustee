@@ -80,3 +80,4 @@ zeroize = "1"
 
 [patch.crates-io]
 sev = { git = "https://github.com/virtee/sev", rev = "d487809188c3c92e397bc92e2cb2a85eb982c980" }
+csv-rs = { git = "https://github.com/panpingsheng/csv-rs.git", branch = "host_data" }
