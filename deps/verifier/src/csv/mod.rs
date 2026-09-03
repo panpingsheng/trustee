@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use base64::Engine;
+use base64::{engine::general_purpose::STANDARD, Engine};
 use eventlog::{ccel::tcg_enum::TcgAlgorithm, CcEventLog, ReferenceMeasurement};
 use reqwest::{get, Response as ReqwestResponse, StatusCode};
 use std::{io::Cursor, path::Path};
@@ -148,11 +148,12 @@ impl Verifier for CsvVerifier {
         }
 
         match &report {
-            AttestationReport::V1(attestation_report_v1) => {
-                let anonce = attestation_report_v1.tee_info.anonce;
-                let policy = attestation_report_v1.tee_info.policy.xor(&anonce);
+            AttestationReport::V1(_attestation_report_v1) => {
+                let policy = report.tee_info().policy();
                 let claims = json!({
+                    // Report version
                     "version": "1",
+                    // Policy fields
                     "policy": {
                         "nodbg": policy.nodbg(),
                         "noks": policy.noks(),
@@ -167,15 +168,14 @@ impl Verifier for CsvVerifier {
                         "api_major": policy.api_major(),
                         "api_minor": policy.api_minor(),
                     },
-                    "user_pubkey_digest": hex::encode(report.tee_info().user_pubkey_digest()),
-                    "vm_id": hex::encode(report.tee_info().vm_id()),
-                    "vm_version": hex::encode(report.tee_info().vm_version()),
-                    "report_data": hex::encode(report.tee_info().report_data()),
-                    "mnonce": hex::encode(report.tee_info().mnonce()),
-                    "measure": hex::encode(report.tee_info().measure()),
-                    "sig_usage": hex::encode(report.tee_info().sig_usage().to_le_bytes()),
-                    "sig_algo": hex::encode(report.tee_info().sig_algo().to_le_bytes()),
-                    "anonce": hex::encode(anonce.to_le_bytes()),
+                    // launch info inject with pdh and session data
+                    "user_pubkey_digest": STANDARD.encode(report.tee_info().user_pubkey_digest()),
+                    "vm_id": STANDARD.encode(report.tee_info().vm_id()),
+                    "vm_version": STANDARD.encode(report.tee_info().vm_version()),
+                    // measurements
+                    "measurement": STANDARD.encode(report.tee_info().measure()),
+                    "report_data": STANDARD.encode(report.tee_info().report_data()),
+                    // Chip ID
                     "serial_number": String::from_utf8(serial_number)?.trim_end_matches('\0'),
                 });
                 Ok(vec![(claims, "cpu".to_string())])
@@ -183,7 +183,9 @@ impl Verifier for CsvVerifier {
             AttestationReport::V2(attestation_report_v2) => {
                 let policy = attestation_report_v2.tee_info.policy;
                 let mut claims = json!({
+                    // Report version
                     "version": "2",
+                    // Policy fields
                     "policy": {
                         "nodbg": policy.nodbg(),
                         "noks": policy.noks(),
@@ -198,23 +200,22 @@ impl Verifier for CsvVerifier {
                         "api_major": policy.api_major(),
                         "api_minor": policy.api_minor(),
                     },
-                    "user_pubkey_digest": hex::encode(report.tee_info().user_pubkey_digest()),
-                    "vm_id": hex::encode(report.tee_info().vm_id()),
-                    "vm_version": hex::encode(report.tee_info().vm_version()),
-                    "report_data": hex::encode(report.tee_info().report_data()),
-                    "mnonce": hex::encode(report.tee_info().mnonce()),
-                    "measure": hex::encode(report.tee_info().measure()),
-                    "sig_usage": hex::encode(report.tee_info().sig_usage().to_le_bytes()),
-                    "sig_algo": hex::encode(report.tee_info().sig_algo().to_le_bytes()),
+                    // launch info inject with pdh and session data
+                    "user_pubkey_digest": STANDARD.encode(attestation_report_v2.tee_info.user_pubkey_digest),
+                    "vm_id": STANDARD.encode(attestation_report_v2.tee_info.vm_id),
+                    "vm_version": STANDARD.encode(attestation_report_v2.tee_info.vm_version),
+                    // firmware versions
                     "build": attestation_report_v2.tee_info.build,
                     "rtmr_version": attestation_report_v2.tee_info.rtmr_version,
-                    "reserved0": hex::encode(attestation_report_v2.tee_info.reserved0),
-                    "rtmr0": hex::encode(attestation_report_v2.tee_info.rtmr0),
-                    "rtmr1": hex::encode(attestation_report_v2.tee_info.rtmr1),
-                    "rtmr2": hex::encode(attestation_report_v2.tee_info.rtmr2),
-                    "rtmr3": hex::encode(attestation_report_v2.tee_info.rtmr3),
-                    "rtmr4": hex::encode(attestation_report_v2.tee_info.rtmr4),
-                    "reserved1": hex::encode(attestation_report_v2.tee_info.reserved1),
+                    // measurements
+                    "measurement": STANDARD.encode(attestation_report_v2.tee_info.measure),
+                    "report_data": STANDARD.encode(attestation_report_v2.tee_info.report_data),
+                    "rtmr0": STANDARD.encode(attestation_report_v2.tee_info.rtmr0),
+                    "rtmr1": STANDARD.encode(attestation_report_v2.tee_info.rtmr1),
+                    "rtmr2": STANDARD.encode(attestation_report_v2.tee_info.rtmr2),
+                    "rtmr3": STANDARD.encode(attestation_report_v2.tee_info.rtmr3),
+                    "rtmr4": STANDARD.encode(attestation_report_v2.tee_info.rtmr4),
+                    // Chip ID
                     "serial_number": String::from_utf8(serial_number)?.trim_end_matches('\0'),
                 });
                 if let Some(el) = cc_eventlog {
@@ -261,7 +262,9 @@ impl Verifier for CsvVerifier {
             AttestationReport::V3(attestation_report_v3) => {
                 let policy = attestation_report_v3.tee_info.policy;
                 let mut claims = json!({
+                    // Report version
                     "version": "3",
+                    // Policy fields
                     "policy": {
                         "nodbg": policy.nodbg(),
                         "noks": policy.noks(),
@@ -276,24 +279,23 @@ impl Verifier for CsvVerifier {
                         "api_major": policy.api_major(),
                         "api_minor": policy.api_minor(),
                     },
-                    "user_pubkey_digest": hex::encode(report.tee_info().user_pubkey_digest()),
-                    "vm_id": hex::encode(report.tee_info().vm_id()),
-                    "vm_version": hex::encode(report.tee_info().vm_version()),
-                    "report_data": hex::encode(report.tee_info().report_data()),
-                    "mnonce": hex::encode(report.tee_info().mnonce()),
-                    "measure": hex::encode(report.tee_info().measure()),
-                    "sig_usage": hex::encode(report.tee_info().sig_usage().to_le_bytes()),
-                    "sig_algo": hex::encode(report.tee_info().sig_algo().to_le_bytes()),
+                    // launch info inject with pdh and session data
+                    "user_pubkey_digest": STANDARD.encode(attestation_report_v3.tee_info.user_pubkey_digest),
+                    "vm_id": STANDARD.encode(attestation_report_v3.tee_info.vm_id),
+                    "vm_version": STANDARD.encode(attestation_report_v3.tee_info.vm_version),
+                    // firmware versions
                     "build": attestation_report_v3.tee_info.build,
                     "rtmr_version": attestation_report_v3.tee_info.rtmr_version,
-                    "reserved0": hex::encode(attestation_report_v3.tee_info.reserved0),
-                    "rtmr0": hex::encode(attestation_report_v3.tee_info.rtmr0),
-                    "rtmr1": hex::encode(attestation_report_v3.tee_info.rtmr1),
-                    "rtmr2": hex::encode(attestation_report_v3.tee_info.rtmr2),
-                    "rtmr3": hex::encode(attestation_report_v3.tee_info.rtmr3),
-                    "rtmr4": hex::encode(attestation_report_v3.tee_info.rtmr4),
-                    "reserved1": hex::encode(attestation_report_v3.tee_info.reserved1),
-                    "host_data": hex::encode(attestation_report_v3.tee_info.host_data),
+                    // measurements
+                    "measurement": STANDARD.encode(attestation_report_v3.tee_info.measure),
+                    "report_data": STANDARD.encode(attestation_report_v3.tee_info.report_data),
+                    "rtmr0": STANDARD.encode(attestation_report_v3.tee_info.rtmr0),
+                    "rtmr1": STANDARD.encode(attestation_report_v3.tee_info.rtmr1),
+                    "rtmr2": STANDARD.encode(attestation_report_v3.tee_info.rtmr2),
+                    "rtmr3": STANDARD.encode(attestation_report_v3.tee_info.rtmr3),
+                    "rtmr4": STANDARD.encode(attestation_report_v3.tee_info.rtmr4),
+                    "host_data": STANDARD.encode(attestation_report_v3.tee_info.host_data),
+                    // Chip ID
                     "serial_number": String::from_utf8(serial_number)?.trim_end_matches('\0'),
                 });
                 if let Some(el) = cc_eventlog {
