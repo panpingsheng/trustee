@@ -17,7 +17,7 @@ use super::*;
 use async_trait::async_trait;
 use codicon::Decoder;
 use csv_rs::{
-    api::guest::{AttestationReport, AttestationReportWrapper},
+    api::guest::{AttestationReport, AttestationReportWrapper, CSV3_HOST_DATA_SIZE},
     certs::{ca, csv, Verifiable},
 };
 use serde_json::json;
@@ -58,6 +58,8 @@ struct CsvEvidence {
 pub enum CsvError {
     #[error("REPORT_DATA is different from that in CSV Quote")]
     ReportDataMismatch,
+    #[error("HOST_DATA is different from that in CSV Quote")]
+    HostDataMismatch,
     #[error("Deserialize Quote failed")]
     DesearizeQuoteFailed(#[source] serde_json::Error),
     #[error(transparent)]
@@ -143,8 +145,28 @@ impl Verifier for CsvVerifier {
             }
         }
 
-        if let InitDataHash::Value(_) = expected_init_data_hash {
-            warn!("CSV does not support init data hash mechanism. skip.");
+        if let InitDataHash::Value(expected_init_data_hash) = expected_init_data_hash {
+            // HOST_DATA is only present in the CSV3 attestation report
+            // (see csv-rs `TeeInfoV3::host_data`). CSV1/CSV2 reports do not
+            // carry this field, so the binding of the init data hash cannot
+            // be checked for them.
+            match &report {
+                AttestationReport::V1(_) | AttestationReport::V2(_) => {
+                    warn!("CSV1/CSV2 attestation report has no host_data field, skip the init data hash check.");
+                }
+                AttestationReport::V3(attestation_report_v3) => {
+                    debug!("Check the binding of HOST_DATA.");
+                    let expected_init_data_hash = regularize_data(
+                        expected_init_data_hash,
+                        CSV3_HOST_DATA_SIZE,
+                        "HOST_DATA",
+                        "CSV",
+                    );
+                    if expected_init_data_hash != attestation_report_v3.tee_info.host_data.to_vec() {
+                        return Err(CsvError::HostDataMismatch.into());
+                    }
+                }
+            }
         }
 
         match &report {
