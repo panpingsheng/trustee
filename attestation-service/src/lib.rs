@@ -258,9 +258,9 @@ impl AttestationService {
 
                 debug!(
                     "claims = {}, initdata claims = {}, runtime claims = {}",
-                    serde_json::to_string(&claims_from_tee_evidence)?,
-                    serde_json::to_string(&init_data_claims)?,
-                    serde_json::to_string(&runtime_data_claims)?,
+                    serde_json::to_string_pretty(&claims_from_tee_evidence)?,
+                    serde_json::to_string_pretty(&init_data_claims)?,
+                    serde_json::to_string_pretty(&runtime_data_claims)?,
                 );
                 tee_claims.push(TeeClaims {
                     tee: verification_request.tee,
