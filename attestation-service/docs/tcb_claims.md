@@ -277,14 +277,17 @@ Generally, policies should be evaluated against the reported TCB.
 Each attestation report produces one set of claims under `hygondcu`. Multiple DCUs are evaluated separately (EAR token submods `dcu0`, `dcu1`, ... in evidence list order):
 
 - `hygondcu.body`: Object. The report body of Hygon DCU.
-  - `hygondcu.body.version`: Number. Firmware version.
-  - `hygondcu.body.chip_id`: String (hex for 16 bytes). DCU chip ID.
-  - `hygondcu.body.user_data`: String (hex for 64 bytes). The challenge data for the attestation.
-  - `hygondcu.body.measure`: String (hex for 32 bytes). measurement of the firmware.
-  - `hygondcu.body.reserved`: String (hex for 128 bytes). Reserved field.
-  - `hygondcu.body.sig_usage`: String (hex). The usage of the signature.
-  - `hygondcu.body.sig_algo`: String (hex). The algorithm of the signature.
-- `hygondcu.report_data`: String (hex for 64 bytes). Same value as `body.user_data`.
+  - `hygondcu.body.version`: Number. Report body version; `< 2` is legacy, `>= 2` carries `ccmode`.
+  - `hygondcu.body.chip_id`: String (UTF-8, trailing NULs trimmed). DCU chip ID.
+  - `hygondcu.body.user_data`: String (Base64 Standard for 64 bytes). The challenge data for the attestation.
+  - `hygondcu.body.measure`: String (Base64 Standard for 32 bytes). Measurement of the firmware.
+  - `hygondcu.body.ccmode`: Number. Confidential computing mode (0 or 1). Present only when `body.version >= 2`.
+  - `hygondcu.body.reserved`: String (Base64 Standard). Reserved field: 128 bytes for `body.version < 2`, 124 bytes for `body.version >= 2`.
+  - `hygondcu.body.sig_usage`: Number. The usage of the signature.
+  - `hygondcu.body.sig_algo`: Number. The algorithm of the signature.
+- `hygondcu.report_data`: String (Base64 Standard for 64 bytes). Same value as `body.user_data`.
+
+Legacy evidence (128-byte `reserved`, no `ccmode`) stored `sig_algo`/`sig_usage` under the opposite names. The verifier swaps them back to the firmware offsets, so for such evidence these two claim values appear swapped compared with older claims. Claim encoding also changed in this release (byte fields: hex to Base64 Standard; integer fields: hex strings to Number), so policies must account for both changes.
 
 ## Hygon CSV
 
